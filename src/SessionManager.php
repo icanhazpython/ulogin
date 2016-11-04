@@ -77,6 +77,7 @@ class SessionManager
      */
     private static function _sessionStart()
     {
+        Logger::DebugLog('Starting session...');
         self::EnsureStorage();
 
         // Set session cookie options
@@ -196,13 +197,16 @@ class SessionManager
         // Set session expiry
         if (!defined('UL_SESSION_EXPIRE')) {    // If nothing is set, expire in 20 minutes
             $_SESSION['sses']['EXPIRES'] = time() + 1200;
+            Logger::DebugLog('Set session expiry to ' . $_SESSION['sses']['EXPIRES'] . ' seconds');
         } else {
             if (UL_SESSION_EXPIRE < 0) {
                 // If negative, do not expire
                 unset($_SESSION['sses']['EXPIRES']);
+                Logger::DebugLog('Session expiry unset');
             } else {
                 // Set expiry
                 $_SESSION['sses']['EXPIRES'] = time() + UL_SESSION_EXPIRE;
+                Logger::DebugLog('Set session expiry to ' . $_SESSION['sses']['EXPIRES'] . ' seconds');
             }
         }
     }
@@ -287,14 +291,17 @@ class SessionManager
     private static function isNewSession()
     {
         if (!isset($_SESSION['sses'])) {
+            Logger::DebugLog('sses does not exist - this is a new session');
             return true;
         }
 
         $sses = $_SESSION['sses'];
 
         if (!isset($sses['IPaddress']) || !isset($sses['userAgent']) || !isset($sses['hostDomain'])) {
+            Logger::DebugLog('session - ipaddress, useragent or hostdomain not set - this is a new session');
             return true;
         } else {
+            Logger::DebugLog('this is an existing session');
             return false;
         }
     }
@@ -349,6 +356,7 @@ class SessionManager
 
     public static function sessionWriteClose()
     {
+        Logger::DebugLog('closing session');
         session_write_close();
         self::$SessionStore = null;
         self::$SessionRunning = false;

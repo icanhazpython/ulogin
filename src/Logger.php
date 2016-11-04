@@ -6,6 +6,16 @@ use \DateTime;
 
 class Logger
 {
+
+    private static $debugLogCallback = null;
+
+    public static function AddDebugLogCallback($func) {
+      if (! is_callable($func)) {
+        throw new \InvalidArgumentException("Debug callback must be callable");
+      }
+      self::$debugLogCallback = $func;
+    }
+
     // Inserts a record into the debug log.
     // Returns the log with the new contents.
     // Each log entry is an array member.
@@ -16,6 +26,9 @@ class Logger
     //   to 4 (most severe/error).
     public static function DebugLog($msg = null, $type = 0)
     {
+      if (self::$debugLogCallback !== null) {
+        call_user_func(self::$debugLogCallback, $msg);
+      }
         if (UL_DEBUG) {
             static $_DebugLog = array();
             if (!empty($msg)) {

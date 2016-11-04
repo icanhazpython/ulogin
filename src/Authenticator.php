@@ -46,6 +46,7 @@ class Authenticator
     {
         // Cap user input to maximum length
         if (strlen($str) > UL_MAX_USERNAME_LENGTH) {
+
             return false;
         }
 
@@ -76,6 +77,7 @@ class Authenticator
 
         // Log authentication
         Logger::Log('auth-success', $username, Utilities::GetRemoteIP(false));
+        Logger::DebugLog("User '$username' successfully authenticated from " . Utilities::GetRemoteIP(false));
 
         $this->AuthResult = $uid;
 
@@ -94,6 +96,7 @@ class Authenticator
 
         // Log authentication attempt
         Logger::Log('auth-fail', $username, Utilities::GetRemoteIP(false));
+        Logger::DebugLog("User '$username' failed authentication from " . Utilities::GetRemoteIP(false));
 
         // Let us check for brute forcing attempts
 
@@ -111,6 +114,7 @@ class Authenticator
             if ($failed_attempts >= UL_BF_USER_ATTEMPTS) {
                 // Okay, we know there have been at least UL_BF_USER_ATTEMPTS unsuccessful login attempts,
                 // in the past $bf_window seconds, zero sucessfull logins since then.
+                Logger::DebugLog("Blocking user '$username' for " . UL_BF_USER_LOCKOUT . " seconds due to $failed_attempts failed login attempts (max is " . UL_BF_USER_ATTEMPTS . ")");
                 $this->Backend->BlockUser($uid, UL_BF_USER_LOCKOUT);
             }
         }
@@ -130,6 +134,7 @@ class Authenticator
             if ($failed_attempts >= UL_BF_IP_ATTEMPTS) {
                 // Okay, we know there have been at least UL_BF_IP_ATTEMPTS unsuccessful login attempts,
                 // in the past $bf_window seconds, zero sucessfull logins since then.
+                Logger::DebugLog("Blocking IP '$ip' for " . UL_BF_IP_LOCKOUT . " seconds due to $failed_attempts failed login attempts (max is " . UL_BF_IP_ATTEMPTS . ")");
                 IpBlocker::SetBlock($ip, UL_BF_IP_LOCKOUT);
             }
         }
@@ -146,6 +151,7 @@ class Authenticator
         if (UL_BF_IP_LOCKOUT > 0) {
             $block_expires = IpBlocker::IpBlocked(Utilities::GetRemoteIP(false));
             if ($block_expires == false) {
+                Logger::DebugLog("Failure during login, cannot get block status.");
                 Utilities::ul_fail('Failure during login, cannot get block status.');
                 return false;
             }
@@ -160,6 +166,7 @@ class Authenticator
         if (UL_BF_USER_LOCKOUT > 0) {
             $block_expires = $this->Backend->UserBlocked($uid);
             if ((!is_object($block_expires) || (get_class($block_expires) != 'DateTime'))) {
+                Logger::DebugLog("Failure during login, cannot get block status.");
                 Utilities::ul_fail('Failure during login, cannot get block status.');
                 return false;
             }
@@ -294,9 +301,11 @@ class Authenticator
     {
         // Validate user input
         if (!self::ValidateUsername($username)) {
+            Logger::DebugLog("User '$username' could not be validated for account creation");
             return false;
         }
         if (!Password::IsValid($password)) {
+            Logger::DebugLog("Password for user '$username' could not be validated for account creation");
             return false;
         }
 
@@ -310,6 +319,7 @@ class Authenticator
         }
 
         Logger::Log('create login', $username, Utilities::GetRemoteIP(false));
+        Logger::DebugLog("User '$username' has been created");
 
         return true;
     }
@@ -318,12 +328,21 @@ class Authenticator
     // Returns true if successful, false otherwise.
     public function SetPassword($uid, $password)
     {
-        // Validate user input
-        if (!Password::IsValid($password)) {
+        // Needed for logging
+        $username = self::Username($uid);
+        if ($username === false) {
+            Logger::DebugLog("Could not lookup user name for uid '$uid'");
             return false;
         }
 
-        return $this->Backend->SetPassword($uid, $password) === true;
+        // Validate user input
+        if (!Password::IsValid($password)) {
+            Logger::DebugLog("Password for user '$username' could not be validated for account creation");
+            return false;
+        }
+        $r = ($this->Backend->SetPassword($uid, $password) === true);
+        ($r) ? Logger::DebugLog("Password has been set for '$username'") : Logger::DebugLog("Password could not be set for '$username'");
+        return $r;
     }
 
     // Deletes new user from the database.
@@ -333,6 +352,7 @@ class Authenticator
         // Needed for logging
         $username = self::Username($uid);
         if ($username === false) {
+            Logger::DebugLog("Could not lookup user name for uid '$uid'");
             return false;
         }
 
@@ -341,6 +361,7 @@ class Authenticator
         if ($ret === true) {
             Logger::Log('delete login', $username, Utilities::GetRemoteIP(false));
         }
+        ($ret) ? Logger::DebugLog("Username '$username' has been deleted") : Logger::DebugLog("Username '$username' could not be deleted");
         return $ret === true;
     }
 
@@ -350,6 +371,7 @@ class Authenticator
     // Returns true on success, false otherwise.
     public function BlockUser($uid, $block)
     {
+        $r = ($this->Backend->BlockUser($uid, $block) === true);
         return $this->Backend->BlockUser($uid, $block) === true;
     }
 
@@ -403,6 +425,8 @@ class Authenticator
             // Set autologin cookie
             setcookie($autologin_name, $autologin_data, $expire, '/', (UL_DOMAIN === 'localhost') ? '' : UL_DOMAIN,
                 $httpsOnly, true);
+
+            Logger::DebugLog("Autologin for '$username' has been set with expiry timestamp of $expire (" . UL_AUTOLOGIN_EXPIRE . " seconds from now)");
         } else {
             // Cookie expiry
             $expire = time() - (3600 * 24 * 365);
@@ -412,6 +436,8 @@ class Authenticator
             // Set autologin cookie
             setcookie($autologin_name, $autologin_data, $expire, '/', (UL_DOMAIN === 'localhost') ? '' : UL_DOMAIN,
                 $httpsOnly, true);
+
+            Logger::DebugLog("Autologin for '$username' has been disabled");
         }
 
         return true;
@@ -469,7 +495,7 @@ class Authenticator
         // Everything seems alright. Log user in and set new autologin cookie.
         $this->AuthSuccess($uid, $username);
         $this->SetAutologin($username, true);
-
+        Logger::DebugLog("Autologin for '$username' successful");
         return $uid;
     }
 }
